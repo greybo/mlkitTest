@@ -3,17 +3,19 @@ package com.example.mlkitcrown.ml_kit
 import android.Manifest
 import android.os.Bundle
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 import com.example.mlkitcrown.databinding.FragmentDetectObjectBinding
-import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.ObjectDetection
 import com.google.mlkit.vision.objects.ObjectDetector
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
@@ -28,22 +30,19 @@ class DetectObjectFragment : Fragment() {
 
     private var objectDetector: ObjectDetector? = null
     private lateinit var cameraExecutor: ExecutorService
-    private var camera: Camera? = null
     private var imageCapture: ImageCapture? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Inflate the layout for this fragment
         _binding = FragmentDetectObjectBinding.inflate(inflater, container, false)
         return _binding?.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-//        allPermissionsGranted()
-        requestPermissions()
+
         // Live detection and tracking
         val options = ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
@@ -52,13 +51,13 @@ class DetectObjectFragment : Fragment() {
 
         objectDetector = ObjectDetection.getClient(options)
 
+        requestPermissions()
+
     }
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-        // Initialize our background executor
         cameraExecutor = Executors.newSingleThreadExecutor()
-
         cameraProviderFuture.addListener({
             // Used to bind the lifecycle of cameras to the lifecycle owner
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
@@ -70,6 +69,31 @@ class DetectObjectFragment : Fragment() {
                     it.setSurfaceProvider(binding.viewFinder.surfaceProvider)
                 }
 
+            imageCapture = ImageCapture.Builder()
+                .build()
+
+            val imageAnalyzer = ImageAnalysis.Builder()
+                .build()
+                .also {
+                    it.setAnalyzer(cameraExecutor, CrownImageAnalyzer { image ->
+                        objectDetector?.process(image)
+                            ?.addOnSuccessListener { detectedObjects ->
+                                // Task completed successfully
+                                Log.d(TAG, "Average luminosity: $detectedObjects")
+                                Toast.makeText(
+                                    requireContext(),
+                                    "$detectedObjects",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            ?.addOnFailureListener { e ->
+                                // Task failed with an exception
+                                Log.d(TAG, "Average luminosity: ${e.message}")
+                            }
+                        Log.d(TAG, "Average luminosity: $image")
+                    })
+                }
+
             // Select back camera as a default
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -78,7 +102,9 @@ class DetectObjectFragment : Fragment() {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                camera = cameraProvider.bindToLifecycle(viewLifecycleOwner, cameraSelector, imageAnalyzer)
+                cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture, imageAnalyzer
+                )
 
             } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -86,13 +112,6 @@ class DetectObjectFragment : Fragment() {
 
         }, ContextCompat.getMainExecutor(requireContext()))
     }
-
-    val imageAnalyzer: ImageAnalysis = object : CrownImageAnalyzer() {
-        override fun responseImage(image: InputImage) {
-            objectDetector?.process(image)
-        }
-    }
-
 
     private fun requestPermissions() {
         activityResultLauncher.launch(REQUIRED_PERMISSIONS)
@@ -120,32 +139,6 @@ class DetectObjectFragment : Fragment() {
             }
         }
 
-
-//    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-//        ContextCompat.checkSelfPermission(
-//            requireContext(), it
-//        ) == PackageManager.PERMISSION_GRANTED
-//    }
-
-//    override fun onRequestPermissionsResult(
-//        requestCode: Int, permissions: Array<String>, grantResults:
-//        IntArray
-//    ) {
-//        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-//        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-//            if (allPermissionsGranted()) {
-//                startCamera()
-//            } else {
-//                Toast.makeText(
-//                    requireContext(),
-//                    "Permissions not granted by the user.",
-//                    Toast.LENGTH_SHORT
-//                ).show()
-//                findNavController().popBackStack()
-//            }
-//        }
-//    }
-
     override fun onDestroyView() {
         _binding = null
         cameraExecutor.shutdown()
@@ -155,7 +148,6 @@ class DetectObjectFragment : Fragment() {
 
     companion object {
         private const val TAG = "CameraX-MLKit"
-        private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS =
             mutableListOf(
                 Manifest.permission.CAMERA
