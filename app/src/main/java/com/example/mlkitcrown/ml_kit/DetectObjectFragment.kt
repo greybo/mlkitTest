@@ -3,6 +3,9 @@ package com.example.mlkitcrown.ml_kit
 import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentValues
+import android.content.Context.AUDIO_SERVICE
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,9 +21,9 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.*
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.example.mlkitcrown.R
 import com.example.mlkitcrown.databinding.FragmentDetectObjectBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.ObjectDetection
@@ -35,9 +38,11 @@ import java.util.concurrent.Executors
 
 //https://developers.google.com/ml-kit/vision/object-detection/android#try-it-out
 class DetectObjectFragment : Fragment() {
-    private var recording: Recording? = null
-    private lateinit var videoCapture: VideoCapture<Recorder>
-    private var recorder: Recorder? = null
+
+//    private var recording: Recording? = null
+//    private lateinit var videoCapture: VideoCapture<Recorder>
+//    private var recorder: Recorder? = null
+
     private val FILENAME_FORMAT = "HH:mm:ss:SSSS"
 
     private val contentResolver: ContentResolver by lazy { requireActivity().applicationContext.contentResolver }
@@ -48,6 +53,8 @@ class DetectObjectFragment : Fragment() {
     private var objectDetector: ObjectDetector? = null
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
+    private var adapter: DetectorObjectAdapter? = null
+    private var mediaPlayer: MediaPlayer? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -60,22 +67,31 @@ class DetectObjectFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         cameraExecutor = Executors.newSingleThreadExecutor()
-
+        initAdapter()
         // Live detection and tracking
         val options = ObjectDetectorOptions.Builder()
             .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
             .enableClassification()  // Optional
+            .enableMultipleObjects()
             .build()
 
         objectDetector = ObjectDetection.getClient(options)
 
         requestPermissions()
-        binding.takePhoto.setOnClickListener {
+        binding.takePhotoButton.setOnClickListener {
             takePhoto()
         }
-//        binding.videoCaptureButton.setOnClickListener {
-//            captureVideo()
-//        }
+
+        mediaPlayer = MediaPlayer.create(requireContext(), R.raw.camera_shutter_sound)
+        mediaPlayer?.setVolume(1f, 1f)
+
+        val audioManager = requireActivity().getSystemService(AUDIO_SERVICE) as AudioManager
+        audioManager.ringerMode = AudioManager.RINGER_MODE_NORMAL
+    }
+
+    private fun initAdapter() {
+        adapter = DetectorObjectAdapter()
+        binding.detectorRecyclerView.adapter = adapter
     }
 
     private fun startCamera() {
@@ -93,31 +109,12 @@ class DetectObjectFragment : Fragment() {
                 }
 
 //            recorder = Recorder.Builder()
-//                .setQualitySelector(
-//                    QualitySelector.from(
-//                        Quality.HIGHEST,
-//                        FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
-//                    )
-//                )
+//                .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
 //                .build()
 //            videoCapture = VideoCapture.withOutput(recorder!!)
 
-            recorder = Recorder.Builder()
-                .setQualitySelector(QualitySelector.from(Quality.HIGHEST))
-                .build()
-            videoCapture = VideoCapture.withOutput(recorder!!)
-
             imageCapture = ImageCapture.Builder()
                 .build()
-
-//            val imageAnalyzer = ImageAnalysis.Builder()
-//                .build()
-//                .also {
-//                    it.setAnalyzer(cameraExecutor, CrownImageAnalyzer { image ->
-////                        setImage(image)
-//                        Log.d(TAG, "Average luminosity: $image")
-//                    })
-//                }
 
             // Select back camera as a default
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -128,7 +125,7 @@ class DetectObjectFragment : Fragment() {
 
                 // Bind use cases to camera
                 cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture, /*imageAnalyzer,*/ videoCapture
+                    this, cameraSelector, preview, imageCapture, /*videoCapture*/
                 )
 
             } catch (exc: Exception) {
@@ -138,79 +135,8 @@ class DetectObjectFragment : Fragment() {
         }, ContextCompat.getMainExecutor(requireContext()))
     }
 
-//    // Implements VideoCapture use case, including start and stop capturing.
-//    private fun captureVideo() {
-//        val videoCapture = this.videoCapture ?: return
-//
-//        binding.videoCaptureButton.isEnabled = false
-//
-//        val curRecording = recording
-//        if (curRecording != null) {
-//            // Stop the current recording session.
-////            curRecording.stop()
-//            recording = null
-//            return
-//        }
-//
-//        // create and start a new recording session
-//        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-//            .format(System.currentTimeMillis())
-//        val contentValues = ContentValues().apply {
-//            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-//            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
-//            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-//                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CameraX-Video")
-//            }
-//        }
-//
-//        val mediaStoreOutputOptions = MediaStoreOutputOptions
-//            .Builder(contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-//            .setContentValues(contentValues)
-//            .build()
-//        recording = videoCapture.output
-//            .prepareRecording(requireContext(), mediaStoreOutputOptions)
-//            .apply {
-//                if (PermissionChecker.checkSelfPermission(
-//                        requireActivity(),
-//                        Manifest.permission.RECORD_AUDIO
-//                    ) ==
-//                    PermissionChecker.PERMISSION_GRANTED
-//                ) {
-////                    withAudioEnabled()
-//                }
-//            }
-//            .start(ContextCompat.getMainExecutor(requireContext())) { recordEvent ->
-//                when (recordEvent) {
-//                    is VideoRecordEvent.Start -> {
-//                        binding.videoCaptureButton.apply {
-//                            text = getString(R.string.stop_capture)
-//                            isEnabled = true
-//                        }
-//                    }
-//                    is VideoRecordEvent.Finalize -> {
-//                        if (!recordEvent.hasError()) {
-//                            val msg = "Video capture succeeded: " +
-//                                    "${"recordEvent.outputUri"}"
-////                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-//                            Log.d(TAG, msg)
-//                        } else {
-////                            recorder?.close()
-//                            recorder = null
-//                            Log.e(
-//                                TAG, "Video capture ends with error: " +
-//                                        "${"recordEvent.error"}"
-//                            )
-//                        }
-//                        binding.videoCaptureButton.apply {
-//                            text = getString(R.string.start_capture)
-//                            isEnabled = true
-//                        }
-//                    }
-//                }
-//            }
-//    }
-
     private fun takePhoto() {
+        mediaPlayer?.start()
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
 
@@ -270,17 +196,20 @@ class DetectObjectFragment : Fragment() {
         objectDetector?.process(image)
             ?.addOnSuccessListener { detectedObjects ->
                 // Task completed successfully
-                val text = detectedObjects.map {
+                var newObject = detectedObjects.map {
                     it.labels.map { label ->
                         label.text
                     }
                 }.joinToString(separator = ", ")
-
-                Log.d(TAG, "Average luminosity: $text")
-                Toast.makeText(
-                    requireContext(), text,
+                if (newObject.isEmpty()) {
+                    newObject = "empty"
+                }
+                adapter?.updateData(newObject) ?: Toast.makeText(
+                    requireContext(), newObject,
                     Toast.LENGTH_SHORT
                 ).show()
+
+                Log.d(TAG, "Average luminosity: $newObject")
             }
             ?.addOnFailureListener { e ->
                 // Task failed with an exception
@@ -317,6 +246,8 @@ class DetectObjectFragment : Fragment() {
     override fun onDestroyView() {
         _binding = null
         cameraExecutor.shutdown()
+        mediaPlayer?.release()
+        mediaPlayer = null
         super.onDestroyView()
     }
 
@@ -324,10 +255,16 @@ class DetectObjectFragment : Fragment() {
     companion object {
         private const val TAG = "CameraX-MLKit"
         private val REQUIRED_PERMISSIONS =
-            mutableListOf(
-                Manifest.permission.CAMERA,
-//                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            ).toTypedArray()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                mutableListOf(
+                    Manifest.permission.CAMERA
+                )
+            } else {
+                mutableListOf(
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+            }.toTypedArray()
     }
 }
 
