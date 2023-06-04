@@ -246,7 +246,6 @@ class DetectObjectFragment : Fragment() {
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                     val msg = "Photo capture succeeded: ${output.savedUri}"
-//                    Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
                     Log.d(TAG, msg)
 
                     try {
@@ -305,11 +304,11 @@ class DetectObjectFragment : Fragment() {
                     permissionGranted = false
             }
             if (!permissionGranted) {
-//                Toast.makeText(
-//                    requireContext(),
-//                    "Permission request denied",
-//                    Toast.LENGTH_SHORT
-//                ).show()
+                Toast.makeText(
+                    requireContext(),
+                    "Permission request denied",
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
                 startCamera()
             }
