@@ -15,8 +15,6 @@ class MainActivity : AppCompatActivity() {
         val toolbar = findViewById<Toolbar>(R.id.mainToolbar)
         setSupportActionBar(toolbar)
 
-        supportActionBar?.setDisplayShowHomeEnabled(true)
-
         supportFragmentManager.beginTransaction().replace(
             R.id.fragmentContainer, DetectObjectFragment(), "DetectObjectFragment"
         ).commit()
