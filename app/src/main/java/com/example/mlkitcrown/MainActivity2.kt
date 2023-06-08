@@ -4,6 +4,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.animation.Animation
@@ -33,18 +34,19 @@ class MainActivity2 : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     @SuppressLint("ObjectAnimatorBinding")
-   override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-        val centerX: Float = imageView!!.getX() + imageView!!.getWidth() / 2
-        val centerY: Float = imageView!!.getY() + imageView!!.getHeight() / 2
+    override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+        Log.i("MainActivity2", "velocityY: $velocityY")
+        val centerX: Float = imageView!!.x + imageView!!.width / 2
+        val centerY: Float = imageView!!.y + imageView!!.height / 2
         val startAngle = 0f
         val endAngle = 360f
         val rotation: ObjectAnimator = ObjectAnimator.ofFloat(imageView, "rotation", startAngle, endAngle)
-        rotation.setDuration(1000)
+        rotation.duration = 1000
         val translationX: ObjectAnimator = ObjectAnimator.ofFloat(imageView, "translationX", centerX)
         val translationY: ObjectAnimator = ObjectAnimator.ofFloat(imageView, "translationY", centerY)
         val translation = AnimatorSet()
         translation.playTogether(translationX, translationY)
-        translation.setDuration(1000)
+        translation.duration = 1000
         val animatorSet = AnimatorSet()
         animatorSet.playSequentially(translation, rotation)
         animatorSet.start()
@@ -52,15 +54,17 @@ class MainActivity2 : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
 
-    override  fun onLongPress(e: MotionEvent) {}
+    override fun onLongPress(e: MotionEvent) {}
 
     override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+        Log.i("MainActivity2", "distanceY: $distanceY, distanceX: $distanceX, ")
         return false
     }
 
     override fun onShowPress(e: MotionEvent) {}
 
     override fun onSingleTapUp(e: MotionEvent): Boolean {
+        Log.i("MainActivity2", "onSingleTapUp: $e")
         return false
     }
 }

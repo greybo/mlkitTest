@@ -12,7 +12,7 @@
         android:id="@+id/main2ImageView"
         android:layout_width="50dp"
         android:layout_height="50dp"
-        android:src="@drawable/ic_take_photo_3"
+        android:src="@drawable/bar_in_pool"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
